@@ -1,22 +1,22 @@
 
 """
 Overall function:
-
 This file creates and manages the connection between the TigerPad FastAPI
 backend and the MySQL database.
 
 It builds the SQLAlchemy engine using database settings loaded from the
 environment, creates reusable database sessions, safely closes sessions,
-rolls back failed transactions, and provides a database health check.
+rolls back failed transactions, and provides database health checks.
 
-For production on Render, it uses Aiven's CA certificate to establish
-an encrypted, certificate-verified MySQL connection.
+In production, it uses the Aiven CA certificate to establish a secure
+TLS-encrypted MySQL connection with certificate and hostname verification.
 
 The database password is never stored directly in this file.
 """
 
 from collections.abc import Generator
 from pathlib import Path
+import ssl
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -26,7 +26,7 @@ from TP_App.config import settings
 
 
 # ---------------------------------------------------------
-# Production MySQL TLS configuration
+# Database TLS configuration
 # ---------------------------------------------------------
 
 database_connect_args = {}
@@ -40,16 +40,20 @@ if settings.ENVIRONMENT.lower() == "production":
             "/etc/secrets/ca.pem"
         )
 
+    ssl_context = ssl.create_default_context(
+        cafile=str(ca_certificate)
+    )
+
+    ssl_context.check_hostname = True
+    ssl_context.verify_mode = ssl.CERT_REQUIRED
+
     database_connect_args = {
-        "ssl": {
-            "ca": str(ca_certificate),
-            "check_hostname": True,
-        }
+        "ssl": ssl_context
     }
 
 
 # ---------------------------------------------------------
-# SQLAlchemy MySQL engine
+# SQLAlchemy database engine
 # ---------------------------------------------------------
 
 engine = create_engine(
@@ -77,11 +81,15 @@ SessionLocal = sessionmaker(
 )
 
 
+# ---------------------------------------------------------
+# Database session management
+# ---------------------------------------------------------
+
 def get_database_session() -> Generator[Session, None, None]:
     """
-    Provide a database session and close it after use.
+    Create a database session for use by TigerPad.
 
-    Roll back the transaction if an error occurs.
+    Roll back failed transactions and always close the session.
     """
 
     database_session = SessionLocal()
@@ -97,11 +105,15 @@ def get_database_session() -> Generator[Session, None, None]:
         database_session.close()
 
 
+# ---------------------------------------------------------
+# Database connection health check
+# ---------------------------------------------------------
+
 def check_database_connection() -> bool:
     """
-    Check whether TigerPad can communicate with MySQL.
+    Verify that the MySQL database can accept a connection.
 
-    SELECT 1 performs a lightweight, read-only connection test.
+    Returns True when SELECT 1 succeeds.
     """
 
     try:
@@ -111,3 +123,17 @@ def check_database_connection() -> bool:
 
     except SQLAlchemyError:
         return False
+
+
+# ---------------------------------------------------------
+# Database engine cleanup
+# ---------------------------------------------------------
+
+def dispose_database_engine() -> None:
+    """
+    Close SQLAlchemy's pooled database connections.
+
+    Called when the FastAPI application shuts down.
+    """
+
+    engine.dispose()
