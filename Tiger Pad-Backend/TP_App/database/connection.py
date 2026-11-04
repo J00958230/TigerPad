@@ -1,23 +1,51 @@
+
 """
 Overall function:
+
 This file creates and manages the connection between the TigerPad FastAPI
 backend and the MySQL database.
 
-It builds the SQLAlchemy engine using the secure database settings loaded
-from .env, creates reusable database sessions, safely closes sessions after
-use, rolls back failed transactions, and provides a health-check function
-that confirms whether MySQL is available.
+It builds the SQLAlchemy engine using database settings loaded from the
+environment, creates reusable database sessions, safely closes sessions,
+rolls back failed transactions, and provides a database health check.
+
+For production on Render, it uses Aiven's CA certificate to establish
+an encrypted, certificate-verified MySQL connection.
 
 The database password is never stored directly in this file.
 """
 
 from collections.abc import Generator
+from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from TP_App.config import settings
+
+
+# ---------------------------------------------------------
+# Production MySQL TLS configuration
+# ---------------------------------------------------------
+
+database_connect_args = {}
+
+if settings.ENVIRONMENT.lower() == "production":
+    ca_certificate = Path("/etc/secrets/ca.pem")
+
+    if not ca_certificate.is_file():
+        raise RuntimeError(
+            "Production MySQL CA certificate not found at "
+            "/etc/secrets/ca.pem"
+        )
+
+    database_connect_args = {
+        "ssl": {
+            "ca": str(ca_certificate),
+            "check_hostname": True,
+        }
+    }
 
 
 # ---------------------------------------------------------
@@ -32,6 +60,7 @@ engine = create_engine(
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_timeout=settings.DATABASE_POOL_TIMEOUT,
     pool_recycle=settings.DATABASE_POOL_RECYCLE,
+    connect_args=database_connect_args,
 )
 
 
@@ -50,23 +79,20 @@ SessionLocal = sessionmaker(
 
 def get_database_session() -> Generator[Session, None, None]:
     """
-    Create and provide a database session.
+    Provide a database session and close it after use.
 
-    FastAPI dependencies will use this generator whenever an endpoint
-    needs to communicate with MySQL. The session is automatically closed
-    when the request finishes.
-
-    If an error occurs during a database operation, the current
-    transaction is rolled back before the exception is raised again.
+    Roll back the transaction if an error occurs.
     """
 
     database_session = SessionLocal()
 
     try:
         yield database_session
+
     except Exception:
         database_session.rollback()
         raise
+
     finally:
         database_session.close()
 
@@ -75,12 +101,7 @@ def check_database_connection() -> bool:
     """
     Check whether TigerPad can communicate with MySQL.
 
-    The SELECT 1 statement performs a lightweight connection test
-    without changing any database information.
-
-    Returns:
-        True if the database connection succeeds.
-        False if the database connection fails.
+    SELECT 1 performs a lightweight, read-only connection test.
     """
 
     try:
@@ -90,19 +111,3 @@ def check_database_connection() -> bool:
 
     except SQLAlchemyError:
         return False
-
-
-def get_database_name() -> str:
-    """Return the configured TigerPad database name."""
-
-    return settings.DATABASE_NAME
-
-
-def dispose_database_engine() -> None:
-    """
-    Close all pooled database connections.
-
-    This function is called when the TigerPad backend shuts down.
-    """
-
-    engine.dispose()
