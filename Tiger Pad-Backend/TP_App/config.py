@@ -171,6 +171,16 @@ class Settings(BaseSettings):
     FILE_SCANNER_COMMAND: str = "clamdscan"
 
     # --------------------------------------------------------
+    # CLOUDFLARE R2 STORAGE
+    # --------------------------------------------------------
+
+    R2_ACCESS_KEY_ID: SecretStr | None = None
+    R2_SECRET_ACCESS_KEY: SecretStr | None = None
+    R2_BUCKET_NAME: str = ""
+    R2_ENDPOINT_URL: str = ""
+    R2_REGION: str = "auto"
+
+    # --------------------------------------------------------
     # RATE LIMITING
     # --------------------------------------------------------
 
