@@ -1,0 +1,61 @@
+# ---------------------------------------------------------
+# TigerPad Git Ignore File
+# ---------------------------------------------------------
+# Prevents private credentials, virtual environments,
+# generated files, uploads, logs, and local development
+# files from being uploaded to GitHub.
+
+# Environment variables and private credentials
+.env
+.env.*
+!.env.example
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing and analysis cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local databases and database backups
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+
+# TigerPad uploaded files
+app/uploads/
+uploads/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+.DS_Store
+
+# VS Code settings
+.vscode/
+
+# JetBrains IDE settings
+.idea/
+
+# Build and package files
+build/
+dist/
+*.egg-info/
+
+# Render and deployment secrets
+.env.production
+.env.development

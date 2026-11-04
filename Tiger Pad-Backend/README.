@@ -1,0 +1,134 @@
+# TigerPad — AI-Powered Career Readiness Platform
+
+**Jackson State University | Senior Capstone Project | Fall 2026**
+
+## Overview
+
+TigerPad is a full-stack, AI-powered career readiness website designed to help Jackson State University students prepare for professional opportunities.
+
+The platform brings together résumé development, career exploration, skill assessment, and faculty guidance in one centralized system.
+
+TigerPad provides separate experiences for students, faculty, and administrators.
+
+## Key Features
+
+### Student Portal
+- Create and manage professional profiles.
+- Build and upload résumés.
+- Receive AI-assisted résumé feedback.
+- Explore career paths and personalized recommendations.
+- Identify skill gaps and track career readiness.
+- Manage academic achievements, projects, experiences, skills, and certifications.
+
+### Faculty Portal
+- Search and view authorized student profiles.
+- Review student résumés and career progress.
+- Access recently viewed student profiles.
+- Manage faculty profile information.
+- Provide guidance based on assigned academic programs.
+
+### Administrator Portal
+- Manage student, faculty, and administrator accounts.
+- Assign and update user roles.
+- Activate and deactivate user accounts.
+- Manage faculty access permissions.
+- Create, edit, and publish career paths.
+- Review system audit logs.
+- Monitor administrative activity.
+
+## Technology Stack
+
+| Component | Technology |
+|---|---|
+| Frontend | React, JavaScript, Vite, CSS |
+| Backend | Python, FastAPI |
+| Database | MySQL |
+| ORM | SQLAlchemy |
+| Authentication | JWT |
+| AI Integration | Groq API |
+| API Architecture | REST |
+| Version Control | Git and GitHub |
+| Deployment Target | Render |
+
+## Project Structure
+
+```text
+Tiger Pad/
+├── Tiger Pad-Frontend/
+│   ├── public/
+│   ├── src/
+│   ├── package.json
+│   └── vite.config.js
+│
+├── Tiger Pad-Backend/
+│   ├── TP_App/
+│   │   ├── models/
+│   │   ├── routes/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   └── main.py
+│   ├── requirements.txt
+│   └── .env.example
+│
+└── README.md
+```
+
+## Running TigerPad Locally
+
+### Backend
+
+From the project root, activate your existing virtual environment:
+
+```bash
+source .venv/bin/activate
+cd "Tiger Pad-Backend"
+python -m uvicorn TP_App.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Backend URL: http://127.0.0.1:8000
+
+API documentation: http://127.0.0.1:8000/docs
+
+### Frontend
+
+In a separate terminal, from the project root:
+
+```bash
+cd "Tiger Pad-Frontend"
+npm install
+npm run dev
+```
+
+Frontend URL: http://localhost:5173
+
+**Configuration:** TigerPad requires a configured MySQL database and backend environment variables. Refer to `Tiger Pad-Backend/.env.example` for the available settings. Never commit real credentials or API keys.
+
+## Security
+
+TigerPad incorporates role-based access controls, JWT authentication, protected API endpoints, and audit logging.
+
+Additional production security configuration and testing are required before deployment to real users.
+
+## Development Team
+
+Developed as a senior capstone project at Jackson State University.
+
+- Project Management
+- Software Engineering
+- Backend Programming
+- Database Development
+- Cybersecurity
+
+## Project Status
+
+**Current status:** Local development and functional testing completed. Production deployment preparation underway.
+
+**Planned deployment:** GitHub and Render.
+
+## Purpose
+
+TigerPad aims to provide JSU students with a centralized platform for building professional résumés, understanding career opportunities, identifying skill gaps, and receiving academic guidance as they transition into the workforce.
+
+---
+
+**TigerPad | Jackson State University | 2026**
