@@ -163,12 +163,21 @@ class Settings(BaseSettings):
 
     UPLOAD_DIRECTORY: Path = Path("TP_App/uploads")
 
-    MAX_UPLOAD_SIZE_MB: int = 10
+    MAX_UPLOAD_SIZE_MB: int = 3
 
     ALLOWED_RESUME_EXTENSIONS: str = ".pdf,.docx"
 
+    # Leave disabled until Cloudmersive integration is deployed
+    # and verified.
     FILE_SCANNING_ENABLED: bool = False
+
+    # Legacy setting retained for compatibility.
+    # Cloudmersive scanning does not use this command.
     FILE_SCANNER_COMMAND: str = "clamdscan"
+
+    # The secret is loaded from Render or a private .env file.
+    # Never hardcode the API key here.
+    CLOUDMERSIVE_API_KEY: SecretStr | None = None
 
     # --------------------------------------------------------
     # CLOUDFLARE R2 STORAGE
@@ -325,6 +334,15 @@ class Settings(BaseSettings):
                 "Authentication rate limit must be positive."
             )
 
+        if self.FILE_SCANNING_ENABLED and (
+            self.CLOUDMERSIVE_API_KEY is None
+            or not self.CLOUDMERSIVE_API_KEY.get_secret_value().strip()
+        ):
+            warnings.append(
+                "Cloudmersive API key is required when "
+                "file scanning is enabled."
+            )
+
         if self.is_production:
 
             if self.DEBUG:
@@ -404,7 +422,7 @@ class Settings(BaseSettings):
 
     def get_ai_allowed_topics(self) -> set[str]:
         """
-        Return approved TigerPad AI topics.
+        Return allowed AI topic categories.
         """
 
         return {
