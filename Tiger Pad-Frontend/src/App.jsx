@@ -4581,19 +4581,39 @@ function AdminAuditLogsView({ healthStatus, onBack, onOpen, navigation = [] }) {
 // Dedicated administrator account management. Backend enforces admin-only access.
 function AdminUserManagementView({ healthStatus, onOpen, navigation = [], currentUser }) {
   const [users, setUsers] = useState([]);
+  const [access, setAccess] = useState([]);
+  const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [busyUserId, setBusyUserId] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [selectedPrograms, setSelectedPrograms] = useState({});
+  const [newLevels, setNewLevels] = useState({});
 
   async function loadUsers() {
     setLoading(true);
-    setNotice(null);
     try {
-      const response = await apiRequest("/admin/users");
-      setUsers(asArray(response));
+      // Fetch every page; the API defaults to only 50 accounts/assignments.
+      async function allPages(path) {
+        const output = [];
+        for (let skip = 0; skip < 10000; skip += 100) {
+          const page = asArray(await apiRequest(`${path}?skip=${skip}&limit=100`));
+          output.push(...page);
+          if (page.length < 100) return output;
+        }
+        throw new Error("Too many records to display; contact an administrator.");
+      }
+      const [loadedUsers, loadedAccess, loadedPrograms] = await Promise.all([
+        allPages("/admin/users"),
+        allPages("/admin/faculty-access"),
+        loadTigerPadCatalog("/academic-programs"),
+      ]);
+      setUsers(loadedUsers);
+      setAccess(loadedAccess);
+      setPrograms(asArray(loadedPrograms));
+      setNotice(null);
     } catch (error) {
       setNotice({ type: "error", text: error.message });
     } finally {
@@ -4603,38 +4623,14 @@ function AdminUserManagementView({ healthStatus, onOpen, navigation = [], curren
 
   useEffect(() => { loadUsers(); }, []);
 
-  async function updateRole(item, roleName) {
-    if (roleName === item.role) return;
-    if (!window.confirm(`Change ${item.first_name || "this user"}'s role to ${displayLabel(roleName)}?`)) return;
-    const roleIds = { student: 1, faculty: 2, admin: 3 };
+  async function perform(item, message, action) {
+    if (!window.confirm(message)) return;
     setBusyUserId(item.user_id);
     setNotice(null);
     try {
-      const saved = await apiRequest(`/admin/users/${item.user_id}/role`, {
-        method: "PATCH",
-        body: JSON.stringify({ role_id: roleIds[roleName] }),
-      });
-      setUsers((current) => current.map((user) => user.user_id === item.user_id ? { ...user, ...saved } : user));
-      setNotice({ type: "success", text: "Account role updated." });
-    } catch (error) {
-      setNotice({ type: "error", text: error.message });
-    } finally {
-      setBusyUserId(null);
-    }
-  }
-
-  async function updateStatus(item) {
-    const nextActive = !item.is_active;
-    if (!window.confirm(`${nextActive ? "Activate" : "Deactivate"} the account for ${item.jsu_email}?`)) return;
-    setBusyUserId(item.user_id);
-    setNotice(null);
-    try {
-      const saved = await apiRequest(`/admin/users/${item.user_id}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_active: nextActive }),
-      });
-      setUsers((current) => current.map((user) => user.user_id === item.user_id ? { ...user, ...saved } : user));
-      setNotice({ type: "success", text: `Account ${nextActive ? "activated" : "deactivated"}.` });
+      await action();
+      await loadUsers();
+      setNotice({ type: "success", text: "Changes saved successfully." });
     } catch (error) {
       setNotice({ type: "error", text: error.message });
     } finally {
@@ -4650,33 +4646,27 @@ function AdminUserManagementView({ healthStatus, onOpen, navigation = [], curren
       && (statusFilter === "all" || (statusFilter === "active" ? !!item.is_active : !item.is_active));
   });
 
+  const programName = (id) => {
+    const program = programs.find((p) => Number(p.program_id) === Number(id));
+    return program?.name || program?.program_name || `Program #${id}`;
+  };
+  const activePrograms = programs.filter((p) => p.is_active !== false && p.is_active !== 0);
+
   return (
     <>
       <div className="welcome-row">
         <div>
-          <p className="eyebrow">Administrator · Account management</p>
+          <p className="eyebrow">Administrator · Account and faculty permissions</p>
           <h1>Manage Users</h1>
-          <p className="dashboard-intro">Find TigerPad accounts, review their roles, and activate or deactivate access.</p>
+          <p className="dashboard-intro">Manage account roles, access status, faculty program assignments, and student-review permissions.</p>
         </div>
         <HealthPill healthStatus={healthStatus} />
       </div>
       {onOpen && <QuickTabs navigation={navigation} onOpen={onOpen} />}
       <Notice notice={notice} />
       <article className="dashboard-card" style={{ marginTop: 24 }}>
-        <p className="card-label">Account administration</p>
-        <h2>How to manage users</h2>
-        <p>Search by name, JSU email, or user ID. Filter by role and account status. Changing a role updates the user's permissions; deactivating an account restricts access without deleting their information. Changes require confirmation and are saved through the administrator API.</p>
-        <p>Use caution with administrator roles. Only authorized administrators should manage accounts.</p>
-      </article>
-      <article className="dashboard-card" style={{ marginTop: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <div>
-            <p className="card-label">User directory</p>
-            <h2>Accounts</h2>
-            <p>{filteredUsers.length} of {users.length} loaded accounts shown</p>
-          </div>
-          <button type="button" className="secondary-button" onClick={loadUsers} disabled={loading || busyUserId !== null}>{loading ? "Loading…" : "Refresh users"}</button>
-        </div>
+        <h2>Account administration</h2>
+        <p>Changing an account role requires the corresponding student or faculty profile to exist. Faculty must have an active Reviewer or Manager program assignment AND review permission enabled to review students. Role changes require the affected user to sign in again.</p>
         <div className="form-row" style={{ marginTop: 18 }}>
           <label style={{ flex: 2 }}>Search users
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, JSU email, or user ID" />
@@ -4692,31 +4682,118 @@ function AdminUserManagementView({ healthStatus, onOpen, navigation = [], curren
             </select>
           </label>
         </div>
-        <p style={{ opacity: 0.8, marginTop: 8 }}>Filters apply to the accounts currently loaded. Refresh to retrieve the latest available accounts.</p>
+        <p>{filteredUsers.length} of {users.length} accounts shown</p>
+        <button type="button" className="secondary-button" onClick={loadUsers} disabled={loading || busyUserId !== null}>{loading ? "Loading…" : "Refresh users"}</button>
         {loading && !users.length && <p>Loading accounts…</p>}
-        {!loading && !filteredUsers.length && <p>{search || roleFilter !== "all" || statusFilter !== "all" ? "No accounts match your filters." : "No accounts available."}</p>}
+        {!loading && !filteredUsers.length && <p>No accounts match your filters.</p>}
         {filteredUsers.map((item) => {
           const isSelf = String(item.user_id) === String(currentUser?.user_id);
-          const busy = busyUserId !== null;
+          const busy = loading || busyUserId !== null;
+          const profileId = item.faculty_profile_id;
+          const assignments = access.filter((entry) => Number(entry.faculty_profile_id) === Number(profileId) && profileId != null);
+          const availablePrograms = activePrograms.filter((program) => !assignments.some((entry) => Number(entry.program_id) === Number(program.program_id)));
+          const selectedProgram = selectedPrograms[item.user_id] || "";
+          const selectedLevel = newLevels[item.user_id] || "viewer";
           return (
-            <div key={item.user_id} style={{ borderTop: "1px solid #315575", padding: "16px 0" }}>
+            <div key={item.user_id} style={{ borderTop: "1px solid #315575", padding: "18px 0" }}>
               <strong>{item.first_name} {item.last_name} {isSelf ? "(Your account)" : ""}</strong>
               <p>{item.jsu_email} · User #{item.user_id}</p>
               <div className="form-row">
                 <label>Role
-                  <select value={String(item.role || "student").toLowerCase()} disabled={busy || isSelf} onChange={(event) => updateRole(item, event.target.value)} style={selectStyle}>
+                  <select value={String(item.role || "student").toLowerCase()} disabled={busy || isSelf} style={selectStyle}
+                    onChange={(event) => {
+                      const roleName = event.target.value;
+                      const roleIds = { student: 1, faculty: 2, admin: 3 };
+                      perform(item, `Change ${item.jsu_email} to ${displayLabel(roleName)}? The user must sign in again.`, () =>
+                        apiRequest(`/admin/users/${item.user_id}/role`, { method: "PATCH", body: JSON.stringify({ role_id: roleIds[roleName] }) }));
+                    }}>
                     <option value="student">Student</option><option value="faculty">Faculty</option><option value="admin">Administrator</option>
                   </select>
                 </label>
                 <div>
-                  <span className="card-label">Status</span>
+                  <span className="card-label">Account status</span>
                   <p>{item.is_active ? "Active" : "Inactive"}</p>
-                  <button type="button" className="text-button" disabled={busy || isSelf} onClick={() => updateStatus(item)}>
-                    {busyUserId === item.user_id ? "Saving…" : item.is_active ? "Deactivate" : "Activate"}
+                  <button type="button" className="text-button" disabled={busy || isSelf}
+                    onClick={() => perform(item, `${item.is_active ? "Deactivate" : "Activate"} ${item.jsu_email}?`, () =>
+                      apiRequest(`/admin/users/${item.user_id}/status`, { method: "PATCH", body: JSON.stringify({ is_active: !item.is_active }) }))}>
+                    {item.is_active ? "Deactivate" : "Activate"}
                   </button>
                 </div>
               </div>
-              {isSelf && <p style={{ opacity: 0.75 }}>You cannot change your own role or status from this page.</p>}
+              {isSelf && <p>You cannot change your own role or status.</p>}
+              {String(item.role).toLowerCase() === "faculty" && (
+                <div style={{ marginTop: 14, padding: 16, borderRadius: 10, background: "#071d31", color: "#fff" }}>
+                  <h3>Faculty permissions</h3>
+                  {!profileId ? (
+                    <p>This account has no faculty profile. A faculty profile must be created before program access can be assigned.</p>
+                  ) : (
+                    <>
+                      <p>Faculty profile #{profileId}</p>
+                      <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <input type="checkbox" checked={Boolean(item.can_review_students)} disabled={busy}
+                          onChange={(event) => {
+                            const enabled = event.target.checked;
+                            perform(item, `${enabled ? "Enable" : "Disable"} student-review permission for ${item.jsu_email}?`, () =>
+                              apiRequest(`/admin/faculty/${profileId}/review-permission`, { method: "PATCH", body: JSON.stringify({ can_review_students: enabled }) }));
+                          }} />
+                        Allow student reviews
+                      </label>
+                      <h4 style={{ marginTop: 18 }}>Program assignments</h4>
+                      {assignments.length === 0 && <p>No program assignments yet.</p>}
+                      {assignments.map((entry) => (
+                        <div key={entry.faculty_program_access_id} style={{ borderTop: "1px solid #315575", padding: "12px 0" }}>
+                          <strong>{programName(entry.program_id)}</strong>
+                          <p>{entry.is_active ? (entry.access_is_valid ? "Active" : "Inactive or expired") : "Revoked"}{entry.expires_at ? ` · Expires ${new Date(entry.expires_at).toLocaleString()}` : ""}</p>
+                          <div className="form-row">
+                            <label>Access level
+                              <select style={selectStyle} value={entry.access_level} disabled={busy}
+                                onChange={(event) => {
+                                  const level = event.target.value;
+                                  perform(item, `Change access to ${displayLabel(level)} for ${programName(entry.program_id)}?`, () =>
+                                    apiRequest(`/admin/faculty-access/${entry.faculty_program_access_id}`, { method: "PATCH", body: JSON.stringify({ access_level: level }) }));
+                                }}>
+                                <option value="viewer">Viewer</option><option value="reviewer">Reviewer</option><option value="manager">Manager</option>
+                              </select>
+                            </label>
+                            <div>
+                              <button type="button" className="secondary-button" disabled={busy || (entry.is_active && !entry.access_is_valid)}
+                                onClick={() => perform(item, `${entry.is_active ? "Revoke" : "Reactivate"} access to ${programName(entry.program_id)}?`, () =>
+                                  apiRequest(`/admin/faculty-access/${entry.faculty_program_access_id}`, { method: "PATCH", body: JSON.stringify({ is_active: !entry.is_active }) }))}>
+                                {entry.is_active ? "Revoke access" : "Reactivate access"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <h4 style={{ marginTop: 18 }}>Assign another program</h4>
+                      {availablePrograms.length === 0 ? <p>No additional active programs available.</p> : (
+                        <div className="form-row">
+                          <label>Academic program
+                            <select style={selectStyle} value={selectedProgram} disabled={busy}
+                              onChange={(event) => setSelectedPrograms((current) => ({ ...current, [item.user_id]: event.target.value }))}>
+                              <option value="">Select program</option>
+                              {availablePrograms.map((program) => <option key={program.program_id} value={program.program_id}>{programName(program.program_id)}</option>)}
+                            </select>
+                          </label>
+                          <label>Access level
+                            <select style={selectStyle} value={selectedLevel} disabled={busy}
+                              onChange={(event) => setNewLevels((current) => ({ ...current, [item.user_id]: event.target.value }))}>
+                              <option value="viewer">Viewer</option><option value="reviewer">Reviewer</option><option value="manager">Manager</option>
+                            </select>
+                          </label>
+                          <button type="button" className="secondary-button" disabled={busy || !selectedProgram}
+                            onClick={() => perform(item, `Assign ${item.jsu_email} to ${programName(selectedProgram)} as ${displayLabel(selectedLevel)}?`, async () => {
+                              await apiRequest("/admin/faculty-access", { method: "POST", body: JSON.stringify({ faculty_profile_id: profileId, program_id: Number(selectedProgram), access_level: selectedLevel }) });
+                              setSelectedPrograms((current) => ({ ...current, [item.user_id]: "" }));
+                            })}>
+                            Assign program
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

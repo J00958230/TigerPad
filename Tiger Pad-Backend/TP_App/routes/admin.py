@@ -157,10 +157,20 @@ def list_users(
         .limit(limit)
     ).all()
 
-    return [
-        user_data(user, role)
-        for user, role in rows
-    ]
+    user_ids = [user.user_id for user, _ in rows]
+    profiles = (
+        db.scalars(select(FacultyProfile).where(FacultyProfile.user_id.in_(user_ids))).all()
+        if user_ids else []
+    )
+    profile_by_user = {profile.user_id: profile for profile in profiles}
+    result = []
+    for user, role in rows:
+        item = user_data(user, role)
+        profile = profile_by_user.get(user.user_id)
+        item["faculty_profile_id"] = profile.faculty_profile_id if profile else None
+        item["can_review_students"] = bool(profile.can_review_students) if profile else False
+        result.append(item)
+    return result
 
 
 @router.get("/users/{user_id}")
@@ -178,7 +188,11 @@ def get_user(
         raise HTTPException(404, "User not found.")
 
     user, role = row
-    return user_data(user, role)
+    result = user_data(user, role)
+    profile = db.scalar(select(FacultyProfile).where(FacultyProfile.user_id == user.user_id))
+    result["faculty_profile_id"] = profile.faculty_profile_id if profile else None
+    result["can_review_students"] = bool(profile.can_review_students) if profile else False
+    return result
 
 
 @router.patch("/users/{user_id}/status")
