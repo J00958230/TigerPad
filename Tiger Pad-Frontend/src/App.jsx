@@ -4584,6 +4584,7 @@ function AdminUserManagementView({ healthStatus, onOpen, navigation = [], curren
   const [access, setAccess] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState(null);
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -4652,152 +4653,174 @@ function AdminUserManagementView({ healthStatus, onOpen, navigation = [], curren
   };
   const activePrograms = programs.filter((p) => p.is_active !== false && p.is_active !== 0);
 
+  const selectedUser = filteredUsers.find((user) => String(user.user_id) === String(selectedUserId)) || null;
+  const fieldStyle = { ...selectStyle, background: "#071d31", color: "#f2f7ff", border: "1px solid #28648b" };
+  const sectionStyle = { border: "1px solid #315575", borderRadius: 14, padding: 20, marginTop: 18, background: "#0a2137" };
+  const cardButtonStyle = { width: "100%", textAlign: "left", padding: "14px 16px", border: "1px solid #315575", borderRadius: 12, background: "#0a2137", color: "#f2f7ff", cursor: "pointer" };
+  const busy = loading || busyUserId !== null;
+  const isSelf = selectedUser && String(selectedUser.user_id) === String(currentUser?.user_id);
+  const profileId = selectedUser?.faculty_profile_id;
+  const assignments = access.filter((entry) => profileId != null && Number(entry.faculty_profile_id) === Number(profileId));
+  const availablePrograms = activePrograms.filter((program) => !assignments.some((entry) => Number(entry.program_id) === Number(program.program_id)));
+  const selectedProgram = selectedUser ? selectedPrograms[selectedUser.user_id] || "" : "";
+  const selectedLevel = selectedUser ? newLevels[selectedUser.user_id] || "viewer" : "viewer";
   return (
     <>
       <div className="welcome-row">
         <div>
-          <p className="eyebrow">Administrator · Account and faculty permissions</p>
+          <p className="eyebrow">Administrator · Account management</p>
           <h1>Manage Users</h1>
-          <p className="dashboard-intro">Manage account roles, access status, faculty program assignments, and student-review permissions.</p>
+          <p className="dashboard-intro">Choose an account to view its settings. Faculty permissions appear separately.</p>
         </div>
         <HealthPill healthStatus={healthStatus} />
       </div>
       {onOpen && <QuickTabs navigation={navigation} onOpen={onOpen} />}
       <Notice notice={notice} />
-      <article className="dashboard-card" style={{ marginTop: 24 }}>
-        <h2>Account administration</h2>
-        <p>Changing an account role requires the corresponding student or faculty profile to exist. Faculty must have an active Reviewer or Manager program assignment AND review permission enabled to review students. Role changes require the affected user to sign in again.</p>
-        <div className="form-row" style={{ marginTop: 18 }}>
-          <label style={{ flex: 2 }}>Search users
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, JSU email, or user ID" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 20, alignItems: "start", marginTop: 24 }}>
+        <article className="dashboard-card">
+          <h2>User directory</h2>
+          <p>Search and select an account to manage.</p>
+          <label>Search users
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, email, or user ID" style={fieldStyle} />
           </label>
-          <label>Role
-            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} style={selectStyle}>
-              <option value="all">All roles</option><option value="student">Student</option><option value="faculty">Faculty</option><option value="admin">Administrator</option>
-            </select>
-          </label>
-          <label>Status
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={selectStyle}>
-              <option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option>
-            </select>
-          </label>
-        </div>
-        <p>{filteredUsers.length} of {users.length} accounts shown</p>
-        <button type="button" className="secondary-button" onClick={loadUsers} disabled={loading || busyUserId !== null}>{loading ? "Loading…" : "Refresh users"}</button>
-        {loading && !users.length && <p>Loading accounts…</p>}
-        {!loading && !filteredUsers.length && <p>No accounts match your filters.</p>}
-        {filteredUsers.map((item) => {
-          const isSelf = String(item.user_id) === String(currentUser?.user_id);
-          const busy = loading || busyUserId !== null;
-          const profileId = item.faculty_profile_id;
-          const assignments = access.filter((entry) => Number(entry.faculty_profile_id) === Number(profileId) && profileId != null);
-          const availablePrograms = activePrograms.filter((program) => !assignments.some((entry) => Number(entry.program_id) === Number(program.program_id)));
-          const selectedProgram = selectedPrograms[item.user_id] || "";
-          const selectedLevel = newLevels[item.user_id] || "viewer";
-          return (
-            <div key={item.user_id} style={{ borderTop: "1px solid #315575", padding: "18px 0" }}>
-              <strong>{item.first_name} {item.last_name} {isSelf ? "(Your account)" : ""}</strong>
-              <p>{item.jsu_email} · User #{item.user_id}</p>
-              <div className="form-row">
-                <label>Role
-                  <select value={String(item.role || "student").toLowerCase()} disabled={busy || isSelf} style={selectStyle}
+          <div className="form-row" style={{ marginTop: 12 }}>
+            <label>Role
+              <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} style={fieldStyle}>
+                <option value="all">All roles</option><option value="student">Student</option><option value="faculty">Faculty</option><option value="admin">Administrator</option>
+              </select>
+            </label>
+            <label>Status
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
+                <option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option>
+              </select>
+            </label>
+          </div>
+          <p style={{ marginTop: 12 }}>{filteredUsers.length} of {users.length} accounts</p>
+          <button type="button" className="secondary-button" onClick={loadUsers} disabled={busy}>{loading ? "Loading…" : "Refresh users"}</button>
+          <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+            {!loading && !filteredUsers.length && <p>No accounts match these filters.</p>}
+            {filteredUsers.map((item) => (
+              <button key={item.user_id} type="button" onClick={() => { setSelectedUserId(item.user_id); setNotice(null); }}
+                aria-pressed={String(selectedUserId) === String(item.user_id)}
+                style={{ ...cardButtonStyle, borderColor: String(selectedUserId) === String(item.user_id) ? "#65c7ff" : "#315575", background: String(selectedUserId) === String(item.user_id) ? "#143c59" : "#0a2137" }}>
+                <strong style={{ display: "block" }}>{item.first_name} {item.last_name}{String(item.user_id) === String(currentUser?.user_id) ? " (You)" : ""}</strong>
+                <span style={{ display: "block", fontSize: 13, opacity: 0.8, overflowWrap: "anywhere", marginTop: 5 }}>{item.jsu_email}</span>
+                <span style={{ display: "block", fontSize: 12, marginTop: 7 }}>{displayLabel(item.role)} · {item.is_active ? "Active" : "Inactive"}</span>
+              </button>
+            ))}
+          </div>
+        </article>
+        <article className="dashboard-card">
+          {!selectedUser ? (
+            <div style={{ padding: "30px 0" }}>
+              <h2>Select a user</h2>
+              <p>Choose someone from the directory to view account settings and, when applicable, faculty permissions.</p>
+            </div>
+          ) : (
+            <>
+              <p className="card-label">Selected account · User #{selectedUser.user_id}</p>
+              <h2>{selectedUser.first_name} {selectedUser.last_name}</h2>
+              <p style={{ overflowWrap: "anywhere" }}>{selectedUser.jsu_email}</p>
+              <section style={sectionStyle}>
+                <h3>Account settings</h3>
+                <p>Manage the user's role and account status.</p>
+                <label>Account role
+                  <select value={String(selectedUser.role || "student").toLowerCase()} disabled={busy || isSelf} style={fieldStyle}
                     onChange={(event) => {
                       const roleName = event.target.value;
                       const roleIds = { student: 1, faculty: 2, admin: 3 };
-                      perform(item, `Change ${item.jsu_email} to ${displayLabel(roleName)}? The user must sign in again.`, () =>
-                        apiRequest(`/admin/users/${item.user_id}/role`, { method: "PATCH", body: JSON.stringify({ role_id: roleIds[roleName] }) }));
+                      perform(selectedUser, `Change ${selectedUser.jsu_email} to ${displayLabel(roleName)}? The user must sign in again.`, () =>
+                        apiRequest(`/admin/users/${selectedUser.user_id}/role`, { method: "PATCH", body: JSON.stringify({ role_id: roleIds[roleName] }) }));
                     }}>
                     <option value="student">Student</option><option value="faculty">Faculty</option><option value="admin">Administrator</option>
                   </select>
                 </label>
-                <div>
-                  <span className="card-label">Account status</span>
-                  <p>{item.is_active ? "Active" : "Inactive"}</p>
-                  <button type="button" className="text-button" disabled={busy || isSelf}
-                    onClick={() => perform(item, `${item.is_active ? "Deactivate" : "Activate"} ${item.jsu_email}?`, () =>
-                      apiRequest(`/admin/users/${item.user_id}/status`, { method: "PATCH", body: JSON.stringify({ is_active: !item.is_active }) }))}>
-                    {item.is_active ? "Deactivate" : "Activate"}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+                  <div><strong>Account status</strong><p style={{ margin: "4px 0" }}>{selectedUser.is_active ? "Active" : "Inactive"}</p></div>
+                  <button type="button" className="secondary-button" disabled={busy || isSelf}
+                    onClick={() => perform(selectedUser, `${selectedUser.is_active ? "Deactivate" : "Activate"} ${selectedUser.jsu_email}?`, () =>
+                      apiRequest(`/admin/users/${selectedUser.user_id}/status`, { method: "PATCH", body: JSON.stringify({ is_active: !selectedUser.is_active }) }))}>
+                    {selectedUser.is_active ? "Deactivate account" : "Activate account"}
                   </button>
                 </div>
-              </div>
-              {isSelf && <p>You cannot change your own role or status.</p>}
-              {String(item.role).toLowerCase() === "faculty" && (
-                <div style={{ marginTop: 14, padding: 16, borderRadius: 10, background: "#071d31", color: "#fff" }}>
+                {isSelf && <p style={{ fontSize: 13 }}>For security, you cannot change your own administrator role or status.</p>}
+                <p style={{ fontSize: 12, opacity: 0.8, marginTop: 12 }}>Student and faculty roles require an existing matching profile. Role changes require a new sign-in.</p>
+              </section>
+              {String(selectedUser.role).toLowerCase() === "faculty" && (
+                <section style={sectionStyle}>
                   <h3>Faculty permissions</h3>
-                  {!profileId ? (
-                    <p>This account has no faculty profile. A faculty profile must be created before program access can be assigned.</p>
-                  ) : (
+                  {!profileId ? <p>This account needs a faculty profile before permissions can be assigned.</p> : (
                     <>
-                      <p>Faculty profile #{profileId}</p>
-                      <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <input type="checkbox" checked={Boolean(item.can_review_students)} disabled={busy}
-                          onChange={(event) => {
-                            const enabled = event.target.checked;
-                            perform(item, `${enabled ? "Enable" : "Disable"} student-review permission for ${item.jsu_email}?`, () =>
-                              apiRequest(`/admin/faculty/${profileId}/review-permission`, { method: "PATCH", body: JSON.stringify({ can_review_students: enabled }) }));
-                          }} />
-                        Allow student reviews
-                      </label>
-                      <h4 style={{ marginTop: 18 }}>Program assignments</h4>
-                      {assignments.length === 0 && <p>No program assignments yet.</p>}
-                      {assignments.map((entry) => (
-                        <div key={entry.faculty_program_access_id} style={{ borderTop: "1px solid #315575", padding: "12px 0" }}>
-                          <strong>{programName(entry.program_id)}</strong>
-                          <p>{entry.is_active ? (entry.access_is_valid ? "Active" : "Inactive or expired") : "Revoked"}{entry.expires_at ? ` · Expires ${new Date(entry.expires_at).toLocaleString()}` : ""}</p>
-                          <div className="form-row">
+                      <p style={{ fontSize: 13 }}>Faculty profile #{profileId}</p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "14px 0", borderBottom: "1px solid #315575" }}>
+                        <div><strong>Student review permission</strong><p style={{ margin: "4px 0", fontSize: 13 }}>{selectedUser.can_review_students ? "Enabled" : "Disabled"}</p></div>
+                        <button type="button" className="secondary-button" disabled={busy}
+                          onClick={() => perform(selectedUser, `${selectedUser.can_review_students ? "Disable" : "Enable"} student reviews for ${selectedUser.jsu_email}?`, () =>
+                            apiRequest(`/admin/faculty/${profileId}/review-permission`, { method: "PATCH", body: JSON.stringify({ can_review_students: !selectedUser.can_review_students }) }))}>
+                          {selectedUser.can_review_students ? "Disable reviews" : "Enable reviews"}
+                        </button>
+                      </div>
+                      <p style={{ fontSize: 12, opacity: 0.8, marginTop: 12 }}>Student reviews also require an active Reviewer or Manager program assignment.</p>
+                      <h3 style={{ marginTop: 24 }}>Program assignments</h3>
+                      {assignments.length === 0 && <p>No programs assigned.</p>}
+                      <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                        {assignments.map((entry) => (
+                          <div key={entry.faculty_program_access_id} style={{ border: "1px solid #315575", borderRadius: 10, padding: 14 }}>
+                            <strong>{programName(entry.program_id)}</strong>
+                            <p style={{ fontSize: 13, margin: "5px 0 12px" }}>{!entry.is_active ? "Revoked" : entry.access_is_valid ? "Active" : "Expired or inactive"}{entry.expires_at ? ` · Expires ${new Date(entry.expires_at).toLocaleString()}` : ""}</p>
                             <label>Access level
-                              <select style={selectStyle} value={entry.access_level} disabled={busy}
+                              <select style={fieldStyle} value={entry.access_level} disabled={busy}
                                 onChange={(event) => {
                                   const level = event.target.value;
-                                  perform(item, `Change access to ${displayLabel(level)} for ${programName(entry.program_id)}?`, () =>
+                                  perform(selectedUser, `Change access to ${displayLabel(level)} for ${programName(entry.program_id)}?`, () =>
                                     apiRequest(`/admin/faculty-access/${entry.faculty_program_access_id}`, { method: "PATCH", body: JSON.stringify({ access_level: level }) }));
                                 }}>
                                 <option value="viewer">Viewer</option><option value="reviewer">Reviewer</option><option value="manager">Manager</option>
                               </select>
                             </label>
-                            <div>
-                              <button type="button" className="secondary-button" disabled={busy || (entry.is_active && !entry.access_is_valid)}
-                                onClick={() => perform(item, `${entry.is_active ? "Revoke" : "Reactivate"} access to ${programName(entry.program_id)}?`, () =>
-                                  apiRequest(`/admin/faculty-access/${entry.faculty_program_access_id}`, { method: "PATCH", body: JSON.stringify({ is_active: !entry.is_active }) }))}>
-                                {entry.is_active ? "Revoke access" : "Reactivate access"}
-                              </button>
-                            </div>
+                            <button type="button" className="secondary-button" style={{ marginTop: 12 }} disabled={busy || (entry.is_active && !entry.access_is_valid)}
+                              onClick={() => perform(selectedUser, `${entry.is_active ? "Revoke" : "Reactivate"} access to ${programName(entry.program_id)}?`, () =>
+                                apiRequest(`/admin/faculty-access/${entry.faculty_program_access_id}`, { method: "PATCH", body: JSON.stringify({ is_active: !entry.is_active }) }))}>
+                              {entry.is_active ? "Revoke access" : "Reactivate access"}
+                            </button>
                           </div>
-                        </div>
-                      ))}
-                      <h4 style={{ marginTop: 18 }}>Assign another program</h4>
-                      {availablePrograms.length === 0 ? <p>No additional active programs available.</p> : (
-                        <div className="form-row">
-                          <label>Academic program
-                            <select style={selectStyle} value={selectedProgram} disabled={busy}
-                              onChange={(event) => setSelectedPrograms((current) => ({ ...current, [item.user_id]: event.target.value }))}>
-                              <option value="">Select program</option>
-                              {availablePrograms.map((program) => <option key={program.program_id} value={program.program_id}>{programName(program.program_id)}</option>)}
-                            </select>
-                          </label>
-                          <label>Access level
-                            <select style={selectStyle} value={selectedLevel} disabled={busy}
-                              onChange={(event) => setNewLevels((current) => ({ ...current, [item.user_id]: event.target.value }))}>
-                              <option value="viewer">Viewer</option><option value="reviewer">Reviewer</option><option value="manager">Manager</option>
-                            </select>
-                          </label>
-                          <button type="button" className="secondary-button" disabled={busy || !selectedProgram}
-                            onClick={() => perform(item, `Assign ${item.jsu_email} to ${programName(selectedProgram)} as ${displayLabel(selectedLevel)}?`, async () => {
-                              await apiRequest("/admin/faculty-access", { method: "POST", body: JSON.stringify({ faculty_profile_id: profileId, program_id: Number(selectedProgram), access_level: selectedLevel }) });
-                              setSelectedPrograms((current) => ({ ...current, [item.user_id]: "" }));
-                            })}>
-                            Assign program
-                          </button>
-                        </div>
-                      )}
+                        ))}
+                      </div>
+                      <div style={{ marginTop: 24, paddingTop: 18, borderTop: "1px solid #315575" }}>
+                        <h3>Assign another program</h3>
+                        {availablePrograms.length === 0 ? <p>No additional active programs available.</p> : (
+                          <>
+                            <label>Academic program
+                              <select style={fieldStyle} value={selectedProgram} disabled={busy}
+                                onChange={(event) => setSelectedPrograms((current) => ({ ...current, [selectedUser.user_id]: event.target.value }))}>
+                                <option value="">Select program</option>
+                                {availablePrograms.map((program) => <option key={program.program_id} value={program.program_id}>{programName(program.program_id)}</option>)}
+                              </select>
+                            </label>
+                            <label style={{ display: "block", marginTop: 12 }}>Access level
+                              <select style={fieldStyle} value={selectedLevel} disabled={busy}
+                                onChange={(event) => setNewLevels((current) => ({ ...current, [selectedUser.user_id]: event.target.value }))}>
+                                <option value="viewer">Viewer</option><option value="reviewer">Reviewer</option><option value="manager">Manager</option>
+                              </select>
+                            </label>
+                            <button type="button" className="secondary-button" style={{ marginTop: 14 }} disabled={busy || !selectedProgram}
+                              onClick={() => perform(selectedUser, `Assign ${selectedUser.jsu_email} to ${programName(selectedProgram)} as ${displayLabel(selectedLevel)}?`, async () => {
+                                await apiRequest("/admin/faculty-access", { method: "POST", body: JSON.stringify({ faculty_profile_id: profileId, program_id: Number(selectedProgram), access_level: selectedLevel }) });
+                                setSelectedPrograms((current) => ({ ...current, [selectedUser.user_id]: "" }));
+                              })}>
+                              Assign program
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </>
                   )}
-                </div>
+                </section>
               )}
-            </div>
-          );
-        })}
-      </article>
+            </>
+          )}
+        </article>
+      </div>
     </>
   );
 }
