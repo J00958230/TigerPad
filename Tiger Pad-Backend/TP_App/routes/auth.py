@@ -34,6 +34,7 @@ from TP_App.config import settings
 from TP_App.dependencies import CurrentUser, get_current_user, get_db
 from TP_App.models.auth_token import AuthToken
 from TP_App.models.role import Role
+from TP_App.models.student_profile import StudentProfile
 from TP_App.models.user import User
 from TP_App.schemas.auth import (
     AuthMessageResponse,
@@ -259,6 +260,22 @@ def _load_user_and_role(
     return user, _safe_role_name(role_name)
 
 
+def _ensure_student_profile(database: Session, user_id: int) -> None:
+    """Create a minimal student profile if one does not already exist.
+
+    Called during student registration and after successful student login.
+    The caller commits this change in its existing database transaction.
+    """
+    existing = database.scalar(
+        select(StudentProfile.student_profile_id).where(
+            StudentProfile.user_id == user_id
+        )
+    )
+    if existing is None:
+        database.add(StudentProfile(user_id=user_id))
+        database.flush()
+
+
 @router.post(
     "/register",
     response_model=AuthenticatedUser,
@@ -315,6 +332,9 @@ def register_student(
 
         database.add(user)
         database.flush()
+        # Both rows are committed together, so registration cannot leave
+        # a student account without its associated student profile.
+        _ensure_student_profile(database, user.user_id)
         database.commit()
         database.refresh(user)
 
@@ -409,6 +429,11 @@ def login(
         user.failed_login_attempts = 0
         user.locked_until = None
         user.last_login_at = now
+
+        # Repair student accounts created before registration included
+        # the profile row. Never create student profiles for faculty/admins.
+        if normalized_role == "student":
+            _ensure_student_profile(database, user.user_id)
 
         if password_needs_rehash(user.password_hash):
             user.password_hash = hash_password(plain_password)
