@@ -26,7 +26,8 @@ import secrets
 from typing import Any, Final, Literal, Mapping
 from uuid import uuid4
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from pydantic import SecretStr
 
 from TP_App.config import settings
@@ -186,14 +187,22 @@ def decode_access_token(token: str) -> dict[str, Any]:
             secret,
             algorithms=[algorithm],
             options={
-                "require_exp": True,
-                "require_sub": True,
-                "require_iat": True,
-                "require_nbf": True,
-                "require_jti": True,
+                "require": [
+                    "exp",
+                    "sub",
+                    "iat",
+                    "nbf",
+                    "jti",
+                ],
+                "verify_signature": True,
+                "verify_exp": True,
+                "verify_iat": True,
+                "verify_nbf": True,
+                "verify_sub": True,
+                "verify_jti": True,
             },
         )
-    except (JWTError, TypeError, ValueError) as error:
+    except (PyJWTError, TypeError, ValueError) as error:
         raise TokenValidationError(
             "Access token is invalid or expired."
         ) from error
