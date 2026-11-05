@@ -4677,7 +4677,7 @@ function AdminUserManagementView({ healthStatus, onOpen, navigation = [], curren
       {onOpen && <QuickTabs navigation={navigation} onOpen={onOpen} />}
       <Notice notice={notice} />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 20, alignItems: "start", marginTop: 24 }}>
-        <article className="dashboard-card">
+        <article className="dashboard-card" style={{ maxHeight: "calc(100vh - 150px)", minHeight: 400, overflowY: "auto", overscrollBehavior: "contain", scrollbarGutter: "stable" }}>
           <h2>User directory</h2>
           <p>Search and select an account to manage.</p>
           <label>Search users
@@ -4710,7 +4710,7 @@ function AdminUserManagementView({ healthStatus, onOpen, navigation = [], curren
             ))}
           </div>
         </article>
-        <article className="dashboard-card">
+        <article className="dashboard-card" style={{ maxHeight: "calc(100vh - 150px)", minHeight: 400, overflowY: "auto", overscrollBehavior: "contain", scrollbarGutter: "stable" }}>
           {!selectedUser ? (
             <div style={{ padding: "30px 0" }}>
               <h2>Select a user</h2>
